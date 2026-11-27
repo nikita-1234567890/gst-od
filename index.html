@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>GST OD Profile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--hd:#dde4f5;--ac:#fbe3d3;--bd:#bbb;--ok:#0a7a2f;--bad:#c0262d;--in:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#16181d;--fg:#e8e8e8;--hd:#2a3350;--ac:#4a3328;--bd:#555;--ok:#4cd07a;--bad:#ff7b80;--in:#22252c}}
+body{background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif;margin:0;padding:12px;max-width:900px;margin:auto}
+h1{background:var(--hd);text-align:center;margin:0;padding:8px;font-size:22px}
+h2{background:var(--ac);text-align:center;margin:14px 0 0;padding:6px;font-size:16px}
+table{width:100%;border-collapse:collapse}td,th{border:1px solid var(--bd);padding:4px 6px}
+th{background:var(--hd)}td.r{text-align:right}.w{overflow-x:auto}
+input,select{background:var(--in);color:var(--fg);border:1px solid var(--bd);padding:4px;width:100%;box-sizing:border-box;font:inherit}
+button{padding:6px 12px;margin:4px 4px 0 0;cursor:pointer}
+.hl td{background:#ff0;color:#000}.ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}
+.note{font-size:12px;opacity:.8;margin:6px 0}
+@media print{button,.noprint{display:none}}
+</style></head><body>
+<h1 id="title">ABC &amp; Co.</h1>
+<div class="noprint note">Data tamara browser ma j rahe che, kyay upload thato nathi. GST password ahiya nakhvo nahi.</div>
+
+<h2>GST OD Basic Profile</h2>
+<table id="prof"></table>
+
+<h2>GST Sales (GSTR-3B)</h2>
+<div class="noprint">
+ <label>Entry type:
+ <select id="mode" style="width:auto"><option value="m">Monthly</option><option value="q">Quarterly</option></select></label>
+ <label>GSTR-3B JSON upload (ek sathe ghana file): <input type="file" id="files" accept=".json" multiple></label>
+ <div class="note">JSON ma thi taxable value (osup_det.txval) ane ret_period auto fill thase.</div>
+ <div class="w"><table id="entry"></table></div>
+</div>
+
+<h2>GST Summary - Monthly</h2>
+<div class="w"><table id="sum"></table></div>
+<table id="calc"></table>
+
+<h2>Existing Loan Details</h2>
+<div class="w"><table id="loans"></table></div>
+<button class="noprint" onclick="addLoan()">+ Loan add karo</button>
+<button class="noprint" onclick="window.print()">Print / PDF</button>
+
+<script>
+var FY=[["25-26",2025],["24-25",2024],["23-24",2023]];
+var MN=["April","May","June","July","August","September","October","November","December","January","February","March"];
+var S={m:{},q:{},loans:[{t:"BL (Joint)",d:"2026-01-01",a:25e5,e:75e3},{t:"BL",d:"",a:0,e:0}],p:{}};
+var mode="m";
+var PF=[["firm","Firm Name","text","ABC & Co"],["con","Constitution","sel"],["part","If Partnership (Partners & Sharing)","text","NA"],
+["inc","Business Vintage (Date of Incorporation) - Min 3 Yrs","date","2024-04-23"],["ack","If Vintage < 3 Yrs: ACK & ITR FY 22-23 Available?","sel2"],
+["one","Profile - One Liner","text",""],["dob","Age of Promoter (Must be < 60) - DOB","date",""],["cibil","CIBIL Score > 720","number",""],
+["res","Residence in Surat (Owner)","sel3"],["emi","Last 6 Months EMI Bounces (Max 3)","number","0"],["chq","Inward Cheque Bounces Last 6 Months (Max 3)","number","0"]];
+function g(id){return document.getElementById(id)}
+function inr(n){return Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function key(fi,i){var y=FY[fi][1]+(i>=9?1:0);return y*12+(3+i)%12}
+function monthly(){var o={};FY.forEach(function(f,fi){for(var i=0;i<12;i++){var k=key(fi,i),v=0;
+ if(mode=="m")v=+(S.m[k]||0);else{var q=Math.floor(i/3);v=+(S.q[fi+"_"+q]||0)/3}o[k]=v}});return o}
+function opts(a,v){return a.map(function(x){return "<option"+(x==v?" selected":"")+">"+x+"</option>"}).join("")}
+function buildProf(){var h="";PF.forEach(function(r){var v=S.p[r[0]]!==undefined?S.p[r[0]]:(r[3]||"");var c;
+ if(r[2]=="sel")c="<select id='"+r[0]+"'>"+opts(["Proprietorship","Partnership","Pvt Ltd","LLP"],v)+"</select>";
+ else if(r[2]=="sel2")c="<select id='"+r[0]+"'>"+opts(["Not Applicable","Available","Not Available"],v)+"</select>";
+ else if(r[2]=="sel3")c="<select id='"+r[0]+"'>"+opts(["Yes","No"],v)+"</select>";
+ else c="<input id='"+r[0]+"' type='"+r[2]+"' value=\""+String(v).replace(/"/g,"&quot;")+"\">";
+ h+="<tr><td style='width:50%'><b>"+r[1]+"</b></td><td>"+c+"</td></tr>"});
+ h+="<tr><td><b>Vintage / Age (auto)</b></td><td id='auto'></td></tr><tr><td><b>Eligibility check</b></td><td id='elig'></td></tr>";
+ g("prof").innerHTML=h;
+ PF.forEach(function(r){g(r[0]).addEventListener("input",function(){S.p[r[0]]=this.value;refresh()})})}
+function ymd(from){var a=new Date(from),b=new Date();if(isNaN(a))return null;var y=b.getFullYear()-a.getFullYear(),m=b.getMonth()-a.getMonth(),d=b.getDate()-a.getDate();
+ if(d<0){m--;d+=new Date(b.getFullYear(),b.getMonth(),0).getDate()}if(m<0){y--;m+=12}return{y:y,m:m,d:d}}
+function buildEntry(){var h="<tr><th>"+(mode=="m"?"Month":"Quarter")+"</th>"+FY.map(function(f){return "<th>FY "+f[0]+"</th>"}).join("")+"</tr>";
+ if(mode=="m")for(var i=0;i<12;i++){h+="<tr><td>"+MN[i]+"</td>"+FY.map(function(f,fi){var k=key(fi,i);return "<td><input type='number' data-k='"+k+"' value='"+(S.m[k]||"")+"'></td>"}).join("")+"</tr>"}
+ else["Q1 (Apr-Jun)","Q2 (Jul-Sep)","Q3 (Oct-Dec)","Q4 (Jan-Mar)"].forEach(function(n,q){h+="<tr><td>"+n+"</td>"+FY.map(function(f,fi){var k=fi+"_"+q;return "<td><input type='number' data-q='"+k+"' value='"+(S.q[k]||"")+"'></td>"}).join("")+"</tr>"});
+ g("entry").innerHTML=h;
+ g("entry").querySelectorAll("input").forEach(function(el){el.addEventListener("input",function(){
+  if(el.dataset.k)S.m[el.dataset.k]=el.value;else S.q[el.dataset.q]=el.value;refresh()})})}
+function refresh(){var M=monthly(),h="<tr><th>Month</th>"+FY.map(function(f){return "<th>FY "+f[0]+"</th>"}).join("")+"</tr>",tot=[0,0,0];
+ for(var i=0;i<12;i++){h+="<tr><td style='text-align:center'>"+MN[i]+"</td>"+FY.map(function(f,fi){var v=M[key(fi,i)];tot[fi]+=v;return "<td class='r'>"+(v?inr(v):"-")+"</td>"}).join("")+"</tr>"}
+ h+="<tr style='background:var(--ac)'><td style='text-align:center'><b>Total</b></td>"+tot.map(function(t){return "<td class='r'><b>"+(t?inr(t):"-")+"</b></td>"}).join("")+"</tr>";
+ g("sum").innerHTML=h;
+ var keys=Object.keys(M).map(Number).filter(function(k){return M[k]>0}),mx=keys.length?Math.max.apply(null,keys):0,l=0,p=0;
+ for(var k=mx-11;k<=mx&&mx;k++)l+=M[k]||0;for(k=mx-23;k<=mx-12&&mx;k++)p+=M[k]||0;
+ var inc=l-p,pc=p?inc/p*100:0;
+ g("calc").innerHTML="<tr class='hl'><td>Last 12 Month Sales (Latest)</td><td class='r'>"+inr(l)+"</td></tr><tr class='hl'><td>Previous 12 Months (Preceding to PY)</td><td class='r'>"+inr(p)+"</td></tr>"+
+ "<tr style='background:var(--ac)'><td><b>Sales Increase or Decrease</b></td><td class='r'><b>"+inr(inc)+"</b></td></tr><tr style='background:var(--ac)'><td><b>% Increase or Decrease</b></td><td class='r'><b>"+pc.toFixed(2)+"%</b></td></tr>";
+ var v=ymd(S.p.inc!==undefined?S.p.inc:"2024-04-23"),a=ymd(S.p.dob),au="";
+ au=(v?"Vintage: "+v.y+" yrs "+v.m+" months "+v.d+" days":"-")+" | Age: "+(a?a.y+" yrs":"-");g("auto").textContent=au;
+ var c=[],cb=+(S.p.cibil||0);
+ c.push([v&&v.y>=3,"Vintage 3+ yrs"]);c.push([a&&a.y<60,"Age < 60"]);c.push([cb>720,"CIBIL > 720"]);
+ c.push([+(S.p.emi||0)<=3,"EMI bounce <= 3"]);c.push([+(S.p.chq||0)<=3,"Cheque bounce <= 3"]);
+ g("elig").innerHTML=c.map(function(x){return "<span class='"+(x[0]?"ok":"bad")+"'>"+(x[0]?"✔ ":"✘ ")+x[1]+"</span>"}).join(" &nbsp; ");
+ g("title").textContent=(S.p.firm||"ABC & Co")}
+function buildLoans(){var h="<tr><th>Type Of Loan</th><th>Date of Sanction</th><th>Sanction Amount</th><th>EMI</th></tr>",ta=0,te=0;
+ S.loans.forEach(function(r,i){ta+=+r.a||0;te+=+r.e||0;
+ h+="<tr><td><input data-i='"+i+"' data-f='t' value='"+r.t+"'></td><td><input type='date' data-i='"+i+"' data-f='d' value='"+r.d+"'></td><td><input type='number' data-i='"+i+"' data-f='a' value='"+(r.a||"")+"'></td><td><input type='number' data-i='"+i+"' data-f='e' value='"+(r.e||"")+"'></td></tr>"});
+ h+="<tr style='background:var(--ac)'><td></td><td></td><td class='r'><b>"+inr(ta)+"</b></td><td class='r'><b>"+inr(te)+"</b></td></tr>";
+ g("loans").innerHTML=h;
+ g("loans").querySelectorAll("input").forEach(function(el){el.addEventListener("input",function(){S.loans[el.dataset.i][el.dataset.f]=el.value;
+  var ta=0,te=0;S.loans.forEach(function(r){ta+=+r.a||0;te+=+r.e||0});var rows=g("loans").rows,last=rows[rows.length-1].cells;last[2].innerHTML="<b>"+inr(ta)+"</b>";last[3].innerHTML="<b>"+inr(te)+"</b>"})})}
+function addLoan(){S.loans.push({t:"BL",d:"",a:0,e:0});buildLoans()}
+g("mode").onchange=function(){mode=this.value;buildEntry();refresh()};
+g("files").onchange=function(){var fs=[].slice.call(this.files),n=0;mode="m";g("mode").value="m";
+ fs.forEach(function(f){var r=new FileReader();r.onload=function(){try{var j=JSON.parse(r.result),rp=j.ret_period||j.fp||"",
+  tv=(j.sup_details&&j.sup_details.osup_det&&j.sup_details.osup_det.txval)||0,
+  mm=+rp.slice(0,2),yy=+rp.slice(2);if(mm&&yy){S.m[yy*12+mm-1]=tv}
+  if(j.gstin&&!S.p.firm){}}catch(e){}
+  if(++n==fs.length){buildEntry();refresh()}};r.readAsText(f)})};
+buildProf();buildEntry();buildLoans();refresh();
+</script></body></html>
